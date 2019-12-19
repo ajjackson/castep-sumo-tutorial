@@ -1,0 +1,209 @@
+#+TITLE: Using Sumo with Castep
+#+AUTHOR: Adam J. Jackson
+
+This tutorial gives a brief introduction to performing some common
+tasks with CASTEP and Sumo. Sumo is a package originally developed for
+setting up and analyzing DFT calculations performed with the Vasp
+electronic structure code. Recently, support has been added for a
+subset of Sumo features to be used with CASTEP. Hopefully CASTEP users
+will be able to benefit from the convenient setup and attractive
+plotting outputs provided by Sumo.
+
+* Requirements
+
+  Sumo requires a scientific Python stack with Python 3.5 and some
+  other dependencies. The latest release can be installed from PyPI
+  (with dependencies) with the command
+
+  #+begin_src bash
+  pip install sumo
+  #+end_src
+
+  Depending on your Python setup you may need to specify =pip3= or
+  request installation to your user space with =--user=.
+
+  This tutorial has been tested with CASTEP version 19.
+  The example CASTEP commands will assume you are using MPI-enabled
+  Castep on a machine with 8 available cores, but you may need to
+  modify the MPI settings or use a batch submission script depending
+  on your available resources.
+
+* Electronic structure: DOS and band structure
+
+** Si
+
+   We will first compute the electronic band structure of
+   silicon. Write the following file to specify the geometry with
+   a reasonable k-point mesh, saved as /si.cell/.
+
+   #+begin_example
+     %block lattice_cart
+      0.000000  2.715000  2.715000
+      2.715000  0.000000  2.715000
+      2.715000  2.715000  0.000000
+     %endblock lattice_cart
+
+     %block positions_abs
+     Si  0.000000  0.000000  0.000000
+     Si  1.357500  1.357500  1.357500
+     %endblock positions_abs
+
+     kpoints_mp_grid 7 7 7
+     symmetry_generate
+   #+end_example
+
+   And /si.param/ file to ensure a decent basis set and convergence level.
+
+   #+begin_example
+     task                singlepoint
+     xc_functional       pbe
+     max_scf_cycles      100
+     basis_precision     fine
+     elec_energy_tol     1e-7
+     elec_eigenvalue_tol 1e-6
+     nextra_bands        8
+   #+end_example
+
+   Now run a singlepoint calculation with e.g.
+
+   #+begin_src bash
+   mpirun -np 8 castep.mpi si
+   #+end_src
+
+   This calculation writes eigenvalue data to /si.bands/. We can
+   obtain a rough DOS by plotting this file with Sumo:
+
+   #+begin_src bash
+     sumo-dosplot --code castep -f si.bands
+   #+end_src
+
+   This writes a file /dos.pdf/ containing a rough DOS plot. However,
+   it doesn't look very good; we see discrete spikes at the
+   eigenvalues. To obtain a smooth spectrum we can add /broadening/;
+   try 0.1 eV using
+
+   #+begin_src bash
+     sumo-dosplot --code castep -f si.bands -g 0.1
+   #+end_src
+
+   (the "-g" is for "Gaussian"). The result looks a lot better, but is
+   still suspiciously spiky. We need more data points, but our 7x7x7
+   k-point grid should have been sufficient for a good SCF. To get
+   more DOS points, we reboot CASTEP with a "spectral" task to compute
+   eigenvalues /non-self-consistently/ on a fine k-point mesh.
+
+   Create a modified cell file /si-dos.cell/, using the
+   SPECTRAL_KPOINTS_MP_GRID to set a fine mesh.
+
+   #+begin_example
+     %block lattice_cart
+      0.000000  2.715000  2.715000
+      2.715000  0.000000  2.715000
+      2.715000  2.715000  0.000000
+     %endblock lattice_cart
+
+     %block positions_abs
+     Si  0.000000  0.000000  0.000000
+     Si  1.357500  1.357500  1.357500
+     %endblock positions_abs
+
+     kpoints_mp_grid 7 7 7
+     spectral_kpoints_mp_grid 21 21 21
+
+     symmetry_generate
+   #+end_example
+
+   In the /si-dos.param/ file we set up a spectral DOS task and REUSE
+   the previous calculation results to avoid unnecessary SCF work.  We
+   might also crank up the number of bands to allow more empty states
+   to be created. Strictly one should not attach too much meaning to
+   empty states from Kohn-Sham DFT calculations; in practice they are
+   very useful.
+
+   #+begin_example
+     task                      spectral
+     spectral_task             dos
+     reuse                     si.check
+     xc_functional             pbe
+     max_scf_cycles            100
+     basis_precision           fine
+     elec_energy_tol           1e-7
+     elec_eigenvalue_tol       1e-6
+     spectral_perc_extra_bands 50
+   #+end_example
+
+   and run with
+
+   #+begin_src bash
+   mpirun -np 8 castep.mpi si-dos
+   #+end_src
+
+   If we check the /si-dos.castep/ output we see that the SCF was run
+   for four steps but converged in one step. There's probably a way to
+   stop those extra steps from running? Most of the run time was then
+   spent evaluating spectral k-points. Plotting our new .bands file
+   with Sumo, the DOS should be a lot more complete.
+
+   #+begin_src bash
+     sumo-dosplot --code castep -f si-dos.bands -g 0.1
+   #+end_src
+
+   This might be a good time to look into some of the appearance
+   options. If you run =sumo-dosplot -h= you will find a list of all
+   the command-line options. For example, we can create a small square
+   plot on a black background in high-resolution PNG format with a
+   fancy font using
+
+   #+begin_src bash
+     sumo-dosplot --code castep -f si-dos.bands -g 0.1 --width 3 --height 3 --style dark_background --format PNG --dpi 300 --font 'Lobster Two' --no-legend
+   #+end_src   
+
+   which might be ideal for a slide presentation.
+
+   This looks pretty good, but we could get more detail about the band
+   edges using a band structure calculation. In CASTEP the procedure
+   is similar to a spectral DOS calculation, but we need to specify
+   the paths of k-points to explore. It's a bit tedious to create
+   these by hand, so we'll let Sumo do it for us.
+
+   #+begin_src bash
+     sumo-kgen --code castep -p si.cell
+   #+end_src
+
+   creates a /band.cell/ file with the k-point path included. If you
+   look in the file you can see that the other settings of the .cell
+   file have been retained. The band structure k-point list includes
+   some comments to mark high-symmetry points; this information will
+   be used later for plotting. For now we make a /band.param/ file
+   which is identical to the DOS parameters except for the
+   TASK (SPECTRAL_TASK is removed):
+
+   #+begin_example
+     task                      bandstructure
+     reuse                     si.check
+     xc_functional             pbe
+     max_scf_cycles            100
+     basis_precision           fine
+     elec_energy_tol           1e-7
+     elec_eigenvalue_tol       1e-6
+     spectral_perc_extra_bands 50
+   #+end_example
+
+   #+begin_src bash
+   mpirun -np 8 castep.mpi band
+   #+end_src
+
+   The key data is written to /band.bands/ and can be plotted with
+
+   #+begin_src bash
+   sumo-bandplot --code castep -f band.bands
+   #+end_src
+
+   which generates a publication-ready /band.pdf/ output file
+   including special-point labels read from the .cell file.
+
+   We can read in the DOS data as well at this point for a combined plot:
+
+   #+begin_src bash
+   sumo-bandplot --code castep -f band.bands --dos si-dos.bands -g 0.1
+   #+end_src
