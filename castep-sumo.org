@@ -28,6 +28,35 @@ plotting outputs provided by Sumo.
   modify the MPI settings or use a batch submission script depending
   on your available resources.
 
+* Summary of commands covered
+
+  If you have already completed the tutorial, here is a refresher of
+  the main included Sumo commands
+
+  #+begin_src bash
+
+    # After a spectral DOS calculation
+    sumo-dosplot --code castep -f seedname.bands -g 0.1
+
+    # Create a .cell file for band structure calculation
+    sumo-kgen --code castep -p seedname.cell
+
+    # Plot the resulting band structure
+    sumo-bandplot --code castep -f band-seedname.bands
+
+    # Combined DOS and bands plot
+    sumo-bandplot --code castep -f band-seedname.bands --dos dos-seedname.bands -g 0.1
+
+
+    # Create multiple .cell files in folders with .param, .check files
+    sumo-kgen --code castep -p seedname.cell -f --split 100
+
+    # Plot from multiple band calculations
+    sumo-bandplot --code castep -f split-01/seedname.bands split-02/seedname.bands
+
+  #+end_src
+
+
 * Electronic structure: DOS and band structure
 
 ** Si (GGA)
@@ -92,8 +121,8 @@ plotting outputs provided by Sumo.
    more DOS points, we reboot CASTEP with a "spectral" task to compute
    eigenvalues /non-self-consistently/ on a fine k-point mesh.
 
-   Create a modified cell file /si-dos.cell/, using the
-   SPECTRAL_KPOINTS_MP_GRID to set a fine mesh.
+   Create a modified cell file /si-dos.cell/, using
+   =SPECTRAL_KPOINTS_MP_GRID= to set a fine mesh.
 
    #+begin_example
      %block lattice_cart
@@ -116,8 +145,8 @@ plotting outputs provided by Sumo.
    In the /si-dos.param/ file we set up a spectral DOS task and REUSE
    the previous calculation results to avoid unnecessary SCF work.  We
    might also crank up the number of bands to allow more empty states
-   to be created. Strictly one should not attach too much meaning to
-   empty states from Kohn-Sham DFT calculations; in practice they are
+   to be created. Strictly, one should not attach much meaning to
+   empty states from Kohn-Sham DFT calculations; in practice, they are
    very useful.
 
    #+begin_example
@@ -143,13 +172,6 @@ plotting outputs provided by Sumo.
    evaluating spectral k-points. Plotting our new .bands file with
    Sumo, the DOS should be a lot more complete.
 
-   #+begin_quote
-   It is possible to shave off one more SCF step by setting
-   =ELEC_CONVERGENCE_WIN=2= and removing a double-check for
-   convergence.  This does require a bit more confidence in the
-   original calculation, however.
-   #+end_quote
-
    #+begin_src bash
      sumo-dosplot --code castep -f si-dos.bands -g 0.1
    #+end_src
@@ -162,15 +184,15 @@ plotting outputs provided by Sumo.
 
    #+begin_src bash
      sumo-dosplot --code castep -f si-dos.bands -g 0.1 --width 3 --height 3 --style dark_background --format PNG --dpi 300 --font 'Lobster Two' --no-legend
-   #+end_src   
+   #+end_src
 
    which might be ideal for a slide presentation.
 
-   This looks pretty good, but we could get more detail about the band
-   edges using a band structure calculation. In CASTEP the procedure
-   is similar to a spectral DOS calculation, but we need to specify
-   the paths of k-points to explore. It's a bit tedious to create
-   these by hand, so we'll let Sumo do it for us.
+   We can get more detail about the band edges using a band structure
+   calculation. In CASTEP the procedure is similar to a spectral DOS
+   calculation, but we need to specify the paths of k-points to
+   explore. It's a bit tedious to create these by hand, so we'll let
+   Sumo do it for us.
 
    #+begin_src bash
      sumo-kgen --code castep -p si.cell
@@ -178,11 +200,11 @@ plotting outputs provided by Sumo.
 
    creates a /band.cell/ file with the k-point path included. If you
    look in the file you can see that the other settings of the .cell
-   file have been retained. The band structure k-point list includes
+   file have been retained. The spectral k-point list includes
    some comments to mark high-symmetry points; this information will
    be used later for plotting. For now we make a /band.param/ file
    which is identical to the DOS parameters except for the
-   SPECTRAL_TASK:
+   =SPECTRAL_TASK=:
 
    #+begin_example
      task                      spectral
@@ -206,10 +228,10 @@ plotting outputs provided by Sumo.
    sumo-bandplot --code castep -f band.bands
    #+end_src
 
-   which generates a publication-ready /band.pdf/ output file
-   including special-point labels read from the .cell file.
+   which generates a publication-ready /band.pdf/ including
+   special-point labels read from the .cell file.
 
-   We can read in the DOS data as well at this point for a combined plot:
+   We can simultaneously read in the DOS data for a combined plot:
 
    #+begin_src bash
    sumo-bandplot --code castep -f band.bands --dos si-dos.bands -g 0.1
@@ -217,18 +239,16 @@ plotting outputs provided by Sumo.
 
 ** Si (Hybrid DFT)
 
-   Hybrid DFT significantly improves upon GGA methods for bandgap
-   prediction, but comes at an increased computational cost. In order
-   to manage hybrid DFT band structure calculations with limited
-   computing walltimes it can be useful to break up the calculation
-   into several smaller paths and re-assemble the results.
+   Hybrid DFT significantly improves upon the accuracy of GGA methods
+   for many properties, but comes at an increased computational
+   cost. In order to manage hybrid DFT band structure calculations
+   with limited computing wall-time, it can be useful to break up the
+   calculation into several smaller paths and re-assemble the results.
 
    First we perform a self-consistent single-point calculation. In our
    /si-hse.cell/ file we specify a norm-conserving pseudopotential as
    CASTEP cannot yet use ultrasoft pseudopotentials for non-local
-   functionals.  We also slightly reduce the self-consistent k-point
-   mesh; for production calculations it is appropriate to check the
-   convergence of properties with this mesh.
+   functionals.
 
    #+begin_example
      %block lattice_cart
@@ -246,14 +266,14 @@ plotting outputs provided by Sumo.
      Si NCP
      %endblock species_pot
 
-     kpoints_mp_grid 5 5 5
+     kpoints_mp_grid 7 7 7
 
      symmetry_generate
    #+end_example
-   
+
    In the corresponding /si-hse.param/ file we enable the HSE06 hybrid
    functional and slightly decrease the electronic convergence
-   criteria. (Again, this should not be done blindly in production
+   criteria. (This should not be done blindly in production
    calculations!)
 
    #+begin_example
