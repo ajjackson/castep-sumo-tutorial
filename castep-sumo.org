@@ -333,3 +333,90 @@ plotting outputs provided by Sumo.
    option to bandplot. How similar are the GGA and HSE06 results for
    Si if you adjust the bandgap to be the same?
    #+end_quote
+
+* Phonons
+** ZnS phonon band structure
+
+   Start with a unit cell of wurtzite ZnS at its nominal lattice
+   parameter, /zns.cell/. The precision of that S position is likely a
+   little off, so we use =SNAP_TO_SYMMETRY= to push it onto a
+   high-symmetry site. Norm-conserving pseudopotentials are selected
+   as required for linear-response calcualations in CASTEP.
+
+   #+begin_src conf :tangle zns.cell
+     %block lattice_cart
+      0.000000  2.710000  2.710000
+      2.710000  0.000000  2.710000
+      2.710000  2.710000  0.000000
+     %endblock lattice_cart
+
+     %block positions_abs
+     Zn  0.000000  0.000000  0.000000
+     S  1.355000  1.355000  1.355000
+     %endblock positions_abs
+
+     %block species_pot
+     Zn NCP
+     S  NCP
+     %endblock species_pot
+
+     fix_all_cell:      true
+     fix_all_ions:      false
+     symmetry_generate: true
+     kpoint_mp_grid:    4 4 4
+     snap_to_symmetry:  true
+   #+end_src
+
+   One should always optimise positions before phonon calculations, so
+   we create /zns.param/ for unit cell optimisation with a high
+   plane-wave cutoff (as required for the Zn NCP). This time the
+   PBEsol XC-functional is selected as this has a good track record
+   for lattice parameters and frequencies in semiconductors.
+
+   #+begin_src conf :tangle zns.param
+   task                  geometryoptimization
+   write_cell_structure  true
+   cut_off_energy        800.0
+   xc_functional         pbesol
+   elec_energy_tol       1e-08
+   elec_force_tol        1e-05
+   max_scf_cycles        100
+   geom_force_tol        0.0001
+   geom_stress_tol       0.001
+   #+end_src
+
+   The optimised structure is saved to /zns-out.cell/. In this case,
+   nothing really happened; by fixing the symmetry and lattice
+   vectors, the atoms stay on their high-symmetry sites and have
+   nowhere to go. A good sanity check nonetheless...
+
+   To make a copy of this with a phonon band-structure path, we can
+   use /kgen/ again
+
+   #+begin_src bash
+   sumo-kgen -c castep -p zns-out.cell --phonon
+   #+end_src
+
+   which writes a /band.cell/ file including the phonon dispersion
+   path. From here it is necessary to manually set the q-point
+   sampling mesh: add =PHONON_KPOINT_MP_GRID: 3 3 3= to the /band.cell/.
+   The =fix_com= line and =fix_all_ions= lines should also be removed.
+
+   The corresponding /band.param/ also needs a few adaptations. Note
+   that if =PHONON_FINE_METHOD= is not set, CASTEP will simply ignore
+   the fine phonon sampling specified in the cell file. The
+   elec_energy_tol is set to an especially fine value to ensure
+   suitable precision.
+
+   #+begin_src conf :tangle band.param
+   task                  phonon
+   phonon_fine_method    interpolate
+   cut_off_energy        800.0
+   xc_functional         pbesol
+   elec_energy_tol       1e-09
+   elec_force_tol        1e-05
+   max_scf_cycles        100
+   #+end_src
+
+  This calculation will take a while to run (about 20 minutes on
+  8-core 2GHz Xeon).
