@@ -138,11 +138,17 @@ plotting outputs provided by Sumo.
    mpirun -np 8 castep.mpi si-dos
    #+end_src
 
-   If we check the /si-dos.castep/ output we see that the SCF was run
-   for four steps but converged in one step. There's probably a way to
-   stop those extra steps from running? Most of the run time was then
-   spent evaluating spectral k-points. Plotting our new .bands file
-   with Sumo, the DOS should be a lot more complete.
+   If we check the /si-dos.castep/ output we see that the SCF
+   converged very quickly. Most of the run time was then spent
+   evaluating spectral k-points. Plotting our new .bands file with
+   Sumo, the DOS should be a lot more complete.
+
+   #+begin_quote
+   It is possible to shave off one more SCF step by setting
+   =ELEC_CONVERGENCE_WIN=2= and removing a double-check for
+   convergence.  This does require a bit more confidence in the
+   original calculation, however.
+   #+end_quote
 
    #+begin_src bash
      sumo-dosplot --code castep -f si-dos.bands -g 0.1
@@ -290,4 +296,20 @@ plotting outputs provided by Sumo.
    a while to run, but if you have access to a cluster you could
    submit both parts to the scheduler to run at the same time!
 
-   
+   When the calculations have run, recombine the results and plot with /bandplot/:
+
+   #+begin_src bash
+     sumo-bandplot -c castep -f split-01/si-hse.bands split-02/si-hse.bands
+   #+end_src
+
+   Hopefully the resulting band structure shows a considerably wider bandgap!
+
+   #+begin_quote
+   In the days before it was feasible to perform band structures with
+   hybrid functionals, a common practice was to "scissor" the bands
+   from an LDA or GGA calculation, shifting empty bands to match a
+   bandgap from experimental data or quasipartical calculations. It's
+   not always advisable, but you /can/ do this with the =--scissor=
+   option to bandplot. How similar are the GGA and HSE06 results for
+   Si if you adjust the bandgap to be the same?
+   #+end_quote
