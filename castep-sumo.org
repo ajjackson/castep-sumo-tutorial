@@ -30,7 +30,7 @@ plotting outputs provided by Sumo.
 
 * Electronic structure: DOS and band structure
 
-** Si
+** Si (GGA)
 
    We will first compute the electronic band structure of
    silicon. Write the following file to specify the geometry with
@@ -176,10 +176,11 @@ plotting outputs provided by Sumo.
    some comments to mark high-symmetry points; this information will
    be used later for plotting. For now we make a /band.param/ file
    which is identical to the DOS parameters except for the
-   TASK (SPECTRAL_TASK is removed):
+   SPECTRAL_TASK:
 
    #+begin_example
-     task                      bandstructure
+     task                      spectral
+     spectral_task             bandstructure
      reuse                     si.check
      xc_functional             pbe
      max_scf_cycles            100
@@ -207,3 +208,86 @@ plotting outputs provided by Sumo.
    #+begin_src bash
    sumo-bandplot --code castep -f band.bands --dos si-dos.bands -g 0.1
    #+end_src
+
+** Si (Hybrid DFT)
+
+   Hybrid DFT significantly improves upon GGA methods for bandgap
+   prediction, but comes at an increased computational cost. In order
+   to manage hybrid DFT band structure calculations with limited
+   computing walltimes it can be useful to break up the calculation
+   into several smaller paths and re-assemble the results.
+
+   First we perform a self-consistent single-point calculation. In our
+   /si-hse.cell/ file we specify a norm-conserving pseudopotential as
+   CASTEP cannot yet use ultrasoft pseudopotentials for non-local
+   functionals.  We also slightly reduce the self-consistent k-point
+   mesh; for production calculations it is appropriate to check the
+   convergence of properties with this mesh.
+
+   #+begin_example
+     %block lattice_cart
+      0.000000  2.715000  2.715000
+      2.715000  0.000000  2.715000
+      2.715000  2.715000  0.000000
+     %endblock lattice_cart
+
+     %block positions_abs
+     Si  0.000000  0.000000  0.000000
+     Si  1.357500  1.357500  1.357500
+     %endblock positions_abs
+
+     %block species_pot
+     Si NCP
+     %endblock species_pot
+
+     kpoints_mp_grid 5 5 5
+
+     symmetry_generate
+   #+end_example
+   
+   In the corresponding /si-hse.param/ file we enable the HSE06 hybrid
+   functional and slightly decrease the electronic convergence
+   criteria. (Again, this should not be done blindly in production
+   calculations!)
+
+   #+begin_example
+     xc_functional             hse06
+     max_scf_cycles            100
+     basis_precision           fine
+     elec_energy_tol           1e-6
+     elec_eigenvalue_tol       1e-5
+     nextra_bands              8
+   #+end_example
+
+   The SCF calculation will take considerably longer than when we used
+   the PBE functional:
+
+   #+begin_src bash
+     mpirun -np 8 castep.mpi si-hse
+   #+end_src
+
+   This time, we use a few different /kgen/ options to set up a split
+   calculation. The =--split N= option divides the large claculation
+   into smaller chunks. (The number is nominally the maximum number of
+   k-points in the generated files, but in practice this is a bit
+   unpredictable. Experimentation is recommended.) The =-f= option
+   sets up new directories for the calculations, copying .check files
+   and modified .param files if possible.
+
+   #+begin_src bash
+     sumo-kgen -c castep -p si-hse.cell -f --split 120
+   #+end_src
+
+   This should create two directories "split-01" and "split-02". If
+   you look inside these folders you should find that
+
+   - the .cell files contain different spectral k-point paths
+   - the .check file has been copied across
+   - the .param file has been copied and modified to reuse the .check
+     file and run a spectral band structure task
+
+   In each of these directories, run CASTEP as before. This will take
+   a while to run, but if you have access to a cluster you could
+   submit both parts to the scheduler to run at the same time!
+
+   
