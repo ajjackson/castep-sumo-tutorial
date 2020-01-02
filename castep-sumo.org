@@ -65,7 +65,7 @@ plotting outputs provided by Sumo.
    silicon. Write the following file to specify the geometry with
    a reasonable k-point mesh, saved as /si.cell/.
 
-   #+begin_example
+   #+begin_src conf :tangle si.cell
      %block lattice_cart
       0.000000  2.715000  2.715000
       2.715000  0.000000  2.715000
@@ -79,11 +79,11 @@ plotting outputs provided by Sumo.
 
      kpoints_mp_grid 7 7 7
      symmetry_generate
-   #+end_example
+   #+end_src
 
    And /si.param/ file to ensure a decent basis set and convergence level.
 
-   #+begin_example
+   #+begin_src conf :tangle si.param
      task                singlepoint
      xc_functional       pbe
      max_scf_cycles      100
@@ -91,7 +91,7 @@ plotting outputs provided by Sumo.
      elec_energy_tol     1e-7
      elec_eigenvalue_tol 1e-6
      nextra_bands        8
-   #+end_example
+   #+end_src
 
    Now run a singlepoint calculation with e.g.
 
@@ -124,7 +124,7 @@ plotting outputs provided by Sumo.
    Create a modified cell file /si-dos.cell/, using
    =SPECTRAL_KPOINTS_MP_GRID= to set a fine mesh.
 
-   #+begin_example
+   #+begin_src conf :tangle si-dos.cell
      %block lattice_cart
       0.000000  2.715000  2.715000
       2.715000  0.000000  2.715000
@@ -140,7 +140,7 @@ plotting outputs provided by Sumo.
      spectral_kpoints_mp_grid 21 21 21
 
      symmetry_generate
-   #+end_example
+   #+end_src
 
    In the /si-dos.param/ file we set up a spectral DOS task and REUSE
    the previous calculation results to avoid unnecessary SCF work.  We
@@ -149,7 +149,7 @@ plotting outputs provided by Sumo.
    empty states from Kohn-Sham DFT calculations; in practice, they are
    very useful.
 
-   #+begin_example
+   #+begin_src conf :tangle si-dos.param
      task                      spectral
      spectral_task             dos
      reuse                     si.check
@@ -159,7 +159,7 @@ plotting outputs provided by Sumo.
      elec_energy_tol           1e-7
      elec_eigenvalue_tol       1e-6
      spectral_perc_extra_bands 50
-   #+end_example
+   #+end_src
 
    and run with
 
@@ -206,7 +206,7 @@ plotting outputs provided by Sumo.
    which is identical to the DOS parameters except for the
    =SPECTRAL_TASK=:
 
-   #+begin_example
+   #+begin_src conf band.param
      task                      spectral
      spectral_task             bandstructure
      reuse                     si.check
@@ -216,7 +216,7 @@ plotting outputs provided by Sumo.
      elec_energy_tol           1e-7
      elec_eigenvalue_tol       1e-6
      spectral_perc_extra_bands 50
-   #+end_example
+   #+end_src
 
    #+begin_src bash
    mpirun -np 8 castep.mpi band
@@ -250,7 +250,7 @@ plotting outputs provided by Sumo.
    CASTEP cannot yet use ultrasoft pseudopotentials for non-local
    functionals.
 
-   #+begin_example
+   #+begin_src si-hse.cell
      %block lattice_cart
       0.000000  2.715000  2.715000
       2.715000  0.000000  2.715000
@@ -269,21 +269,21 @@ plotting outputs provided by Sumo.
      kpoints_mp_grid 7 7 7
 
      symmetry_generate
-   #+end_example
+   #+end_src
 
    In the corresponding /si-hse.param/ file we enable the HSE06 hybrid
    functional and slightly decrease the electronic convergence
    criteria. (This should not be done blindly in production
    calculations!)
 
-   #+begin_example
+   #+begin_src si-hse.param
      xc_functional             hse06
      max_scf_cycles            100
      basis_precision           fine
      elec_energy_tol           1e-6
      elec_eigenvalue_tol       1e-5
      nextra_bands              8
-   #+end_example
+   #+end_src
 
    The SCF calculation will take considerably longer than when we used
    the PBE functional:
@@ -419,4 +419,9 @@ plotting outputs provided by Sumo.
    #+end_src
 
   This calculation will take a while to run (about 20 minutes on
-  8-core 2GHz Xeon).
+  8-core 2GHz Xeon). The 3x3x3 q-point mesh set with
+  =PHONON_KPOINT_MP_GRID= is reduced by symmetry to four inequivalent
+  wavevectors; at each of these points, the ionic degrees of freedom
+  (reduced by symmetry from 6 to 2) are explored within perturbation
+  theory. The resulting set of dynamical matrices is then used to
+  compute the fine band structure by Fourier interpolation.
