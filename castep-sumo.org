@@ -54,6 +54,16 @@ plotting outputs provided by Sumo.
     # Plot from multiple band calculations
     sumo-bandplot --code castep -f split-01/seedname.bands split-02/seedname.bands
 
+
+    # create a .cell file for phonon band structure calculation
+    sumo-kgen --code castep -p seedname.cell --phonon
+
+    # Plot a phonon band structure
+    sumo-phonon-bandplot -f seedname.phonon
+
+    # Write JSON for web app visualisation
+    sumo-phonon-bandplot -f seedname.phonon --to-web my-filename.json
+
   #+end_src
 
 
@@ -337,7 +347,7 @@ plotting outputs provided by Sumo.
 * Phonons
 ** ZnS phonon band structure
 
-   Start with a unit cell of wurtzite ZnS at its nominal lattice
+   Start with a unit cell of zincblende ZnS at its nominal lattice
    parameter, /zns.cell/. The precision of that S position is likely a
    little off, so we use =SNAP_TO_SYMMETRY= to push it onto a
    high-symmetry site. Norm-conserving pseudopotentials are selected
@@ -425,3 +435,73 @@ plotting outputs provided by Sumo.
   (reduced by symmetry from 6 to 2) are explored within perturbation
   theory. The resulting set of dynamical matrices is then used to
   compute the fine band structure by Fourier interpolation.
+
+  The phonon band structure can now be plotted with
+
+  #+begin_src bash
+  sumo-phonon-bandplot -f band.phonon
+  #+end_src
+
+  Compare this with the phonon band structure from Material Project,
+  which was calculated using Abinit:
+  https://materialsproject.org/materials/mp-10695/
+
+  It would be easier to compare if we were
+
+  a) using the same units (cm-1) and
+  b) using the same reciprocal-space path.
+
+  Fortunately Castep is able to quickly perform the Fourier
+  interpolation from an existing calculation, so we can modify the
+  .cell file for a pymatgen-standard path:
+
+  #+begin_src bash
+  sumo-kgen --code castep -p band.cell --phonon --pymatgen
+  #+end_src
+
+  and add a continuation tag to the .param file:
+
+  #+begin_src bash
+  echo "continuation: default" >> band.param
+  #+end_src
+
+  This will run quite quickly:
+  #+begin_src bash
+     mpirun -np 8 castep.mpi band
+  #+end_src
+
+  and can be replotted in units of cm-1 with
+
+  #+begin_src bash
+  sumo-phonon-bandplot -f band.phonon --units cm-1
+  #+end_src
+
+  to replace /phonon_band.pdf/ with something more comparable with the
+  Abinit calculation on materialsproject.org. We see that in our
+  calculation with the same XC functional the optic mode frequencies
+  are a little low and the acoustic mode frequencies are rather
+  high. This suggests that our lattice parameters were too small.
+
+  A useful tool for further exploration of the phonon modes is
+  Henrique Miranda's phonon website. This link should take us to a
+  page populated with the phonon data from materials project, but
+  seems to be broken at this moment:
+
+  http://henriquemiranda.github.io/phononwebsite/phonon.html?rest=https://materialsproject.org/rest/v2/materials/mp-10695/phononbs&name=ZnS&link=https://materialsproject.org/materials/mp-10695&hidematlist=true
+
+  If this doesn't load a structure/plot, you can get it manually by
+  going to http://henriquemiranda.github.io/phononwebsite/phonon.html
+  and selecting ZnS from the list of included materials at the
+  top-left of the page. It may take a while to find...
+
+  We can load our own data into this web-app after creating an
+  appropriate file using /phonon-bandplot/ with the =--to-web= option.
+
+  #+begin_src bash
+  sumo-phonon-bandplot -f band.phonon --to-web web-phonons.json
+  #+end_src
+
+  Use the Custom file "Browse" button in the web interface to find the
+  generated /web-phonons.json/ file and load it. It is now possible to
+  visualise the phonons calculated in CASTEP by clicking on the
+  corresponding point in the phonon dispersion plot.
